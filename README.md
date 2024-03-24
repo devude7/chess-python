@@ -2,6 +2,8 @@
 A small chess project implemented in python!
 I believe that I've implemented all the special rules of chess like en-passant, castling or draw by repetition, so the game is complete in that regard. It is definitely not the most efficient and optimized chess implementation, so the game might lag at times. 
 
+![chess](https://github.com/devude7/chess-python/assets/112627008/b898f641-329f-4909-ac12-1ff55da564d7)
+
 # Structure
 
 All aspects related to running and visualizing the game are contained within the `chess.py` file, implemented using the **pygame** library. Meanwhile, the underlying game mechanics are handled in the `logic.py` file
