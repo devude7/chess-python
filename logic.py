@@ -1,5 +1,3 @@
-import pygame
-import os
 import copy
 
 # checks if game is over or draw

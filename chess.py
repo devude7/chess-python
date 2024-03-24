@@ -1,8 +1,4 @@
-
 import pygame
-import sys
-import os
-import time
 import copy
 from logic import *
 
