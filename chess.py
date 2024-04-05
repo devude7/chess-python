@@ -72,7 +72,6 @@ def draw_valid_moves(valid_moves):
         for move in valid_moves:
             pygame.draw.circle(screen, 'red', (move[1] * 90 + 180, move[0] * 90 + 135), 8)
        
-      
 run = True
 # main loop
 while run:
@@ -176,51 +175,59 @@ while run:
                     if not is_in_check(board_test, selected_test.color):
                         valid_moves.append(move)
             draw_valid_moves(valid_moves)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                pos = pygame.mouse.get_pos()
+                x = (pos[0] - 135) // 90
+                y = (pos[1] - 90) // 90
+                if (x, y) == (10, 3) or (x, y) == (9, 3):
+                    restart = True
+                if turn == 'white': # if it is white's turn, select a white piece and move it
+                    if (x, y) == (9, 5) or (x, y) == (10, 5):
+                        winner = 'Black'    
+                    if x >= 0 and x <= 7 and y >= 0 and y <= 7 and rep == False and term != 0 and winner == '-':
+                        if board.pieces[y][x] != None and board.pieces[y][x].color == 'white':
+                            selected = board.pieces[y][x]
+                        elif selected != 99:
+                            if is_in_check(board, turn):
+                                if selected.incheck_move(y, x, board):
+                                    turn = 'black'
+                                    selected = 99
+                            else:
+                                if selected.move(y, x, board):
+                                    turn = 'black'
+                                    selected = 99
+                elif turn == 'black': # if it is black's turn, select a black piece and move it
+                    if (x, y) == (9, 5) or (x, y) == (10, 5):
+                        winner = 'White'
+                    if x >= 0 and x <= 7 and y >= 0 and y <= 7 and rep == False and term != 0 and winner == '-':
+                        if board.pieces[y][x] != None and board.pieces[y][x].color == 'black':
+                            selected = board.pieces[y][x]
+                        elif selected != 99:
+                            if is_in_check(board, turn):
+                                if selected.incheck_move(y, x, board):
+                                    turn = 'white'
+                                    selected = 99
+                            else:
+                                if selected.move(y, x, board):
+                                    turn = 'white'
+                                    selected = 99
+
         if ai == True and turn != board.board_bottom:
-            best_move = minimax(board, 1, turn)
-            board.pieces[best_move[0]][best_move[1]].move(best_move[2], best_move[3], board)
+            draw_board()
+            draw_pieces()
+            promotion(board)
+            pygame.draw.rect(screen, 'grey', (400, 870, text.get_width(), text.get_height()))
+            text = big_font.render("AI makes move...", True, black)
+            screen.blit(text, (400, 870))  
+            pygame.display.flip()  
+            best_move = minimax(board, 2, turn)  
+            board.pieces[best_move[0]][best_move[1]].move(best_move[2], best_move[3], board)  
             turn = board.board_bottom
             selected = 99
-        else:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    run = False
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    pos = pygame.mouse.get_pos()
-                    x = (pos[0] - 135) // 90
-                    y = (pos[1] - 90) // 90
-                    if (x, y) == (10, 3) or (x, y) == (9, 3):
-                        restart = True
-                    if turn == 'white': # if it is white's turn, select a white piece and move it
-                        if (x, y) == (9, 5) or (x, y) == (10, 5):
-                            winner = 'Black'    
-                        if x >= 0 and x <= 7 and y >= 0 and y <= 7 and rep == False and term != 0 and winner == '-':
-                            if board.pieces[y][x] != None and board.pieces[y][x].color == 'white':
-                                selected = board.pieces[y][x]
-                            elif selected != 99:
-                                if is_in_check(board, turn):
-                                    if selected.incheck_move(y, x, board):
-                                        turn = 'black'
-                                        selected = 99
-                                else:
-                                    if selected.move(y, x, board):
-                                        turn = 'black'
-                                        selected = 99
-                    elif turn == 'black': # if it is black's turn, select a black piece and move it
-                        if (x, y) == (9, 5) or (x, y) == (10, 5):
-                            winner = 'White'
-                        if x >= 0 and x <= 7 and y >= 0 and y <= 7 and rep == False and term != 0 and winner == '-':
-                            if board.pieces[y][x] != None and board.pieces[y][x].color == 'black':
-                                selected = board.pieces[y][x]
-                            elif selected != 99:
-                                if is_in_check(board, turn):
-                                    if selected.incheck_move(y, x, board):
-                                        turn = 'white'
-                                        selected = 99
-                                else:
-                                    if selected.move(y, x, board):
-                                        turn = 'white'
-                                        selected = 99
+
     pygame.display.flip()
 pygame.quit()
 
