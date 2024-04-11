@@ -1,6 +1,7 @@
 import pygame
 import copy
 from logic import *
+from ai import minimax
 
 # initialize pygame
 pygame.init()
@@ -17,6 +18,7 @@ white = (255, 255, 255)
 turn = 'white'
 winner = '-'
 restart = False
+ai = None
 
 # initialize the board
 side = None
@@ -70,7 +72,6 @@ def draw_valid_moves(valid_moves):
         for move in valid_moves:
             pygame.draw.circle(screen, 'red', (move[1] * 90 + 180, move[0] * 90 + 135), 8)
        
-      
 run = True
 # main loop
 while run:
@@ -97,6 +98,24 @@ while run:
                 elif (x >= 677 and x <= 852) and (y >= 407 and y <= 492):
                     side = 'black'
                     board = Board(side)
+    elif ai == None:
+        pygame.draw.rect(screen, 'yellow', (90 * 2.5, 90 * 1, 720, 720), 4)
+        screen.blit(big_font.render("Play", True, black), (110 * 5, 90 * 2))
+        pygame.draw.rect(screen, 'yellow', (90 * 3.5, 90 * 4.5, 180, 90), 4)
+        screen.blit(big_font.render("vs. AI", True, black), (90 * 3.5 + 35, 90 * 4.5 + 25))
+        pygame.draw.rect(screen, 'yellow', (90 * 7.5, 90 * 4.5, 180, 90), 4)
+        screen.blit(big_font.render("Alone", True, black), (90 * 7.5 + 35, 90 * 4.5 + 25))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                pos = pygame.mouse.get_pos()
+                x = pos[0]
+                y = pos[1]            
+                if (x >= 319 and x <= 492) and (y >= 408 and y <= 491):
+                    ai = True 
+                elif (x >= 677 and x <= 852) and (y >= 407 and y <= 492):
+                    ai = False
     else:
         draw_board()
         draw_pieces()
@@ -195,6 +214,20 @@ while run:
                                 if selected.move(y, x, board):
                                     turn = 'white'
                                     selected = 99
+
+        if ai == True and turn != board.board_bottom:
+            draw_board()
+            draw_pieces()
+            promotion(board)
+            pygame.draw.rect(screen, 'grey', (400, 870, text.get_width(), text.get_height()))
+            text = big_font.render("AI makes move...", True, black)
+            screen.blit(text, (400, 870))  
+            pygame.display.flip()  
+            best_move = minimax(board, 2, turn)  
+            board.pieces[best_move[0]][best_move[1]].move(best_move[2], best_move[3], board)  
+            turn = board.board_bottom
+            selected = 99
+
     pygame.display.flip()
 pygame.quit()
 

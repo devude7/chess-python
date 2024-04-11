@@ -22,9 +22,12 @@ In `logic.py`, there are essential functions apart from class implementations. F
 
 There are also functions such as `is_in_check`, `is_attacked`, `promotion`, `starting_board`, and `reset_en_passant`. Their are quite self-explanatory, so I won't provide additional details here.
 
-# Future 
-Initially, I had planned to implement an AI using the minimax algorithm to play against, but after some attempts, I've decided to postpone it for now. Perhaps I'll work on it later on.
+Finally, added later to the project is `ai.py`, with the implementation of a minimax AI algorithm with alpha-beta pruning along with it's supporting functions. It's worth noting that the computational performance isn't great, likely due to inefficiencies in the game's design.
 
-Additionally, as I mentioned at the beginning, there is room for optimization. Certain elements could be restructured or relocated within the code for better efficiency, making the game run more smoothly.
+# Future 
+
+I plan to improve a bit the minimax algorithm as it is very basic at the moment and it makes weird repetition at times, but I don't know whether I will be able to improve computational efficiency of it.
+
+As I mentioned at the beginning, there is room for optimization. Certain elements could be restructured or relocated within the code for better efficiency, making the game run more smoothly.
 
 chess pieces images: https://commons.wikimedia.org/wiki/Category:PNG_chess_pieces/Standard_transparent
