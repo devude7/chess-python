@@ -84,26 +84,21 @@ def is_in_check(board, color):
     
 
 def is_attacked(board, position, color):
-    attacked = []
     for y in range(BOARD_SIZE):
         for x in range(BOARD_SIZE):
-            if board.pieces[y][x] != None and board.pieces[y][x].color != color and board.pieces[y][x].piece_type != 'king':
-                attacked += board.pieces[y][x].valid_moves(board)
-    if position in attacked:
-        return True
+            piece = board.pieces[y][x]
+            if piece and piece.color != color and piece.piece_type != 'king':
+                if position in piece.valid_moves(board):
+                    return True
     return False
     
 
 def promotion(board):
-    for i in range(BOARD_SIZE):
-        if board.pieces[0][i] != None and board.pieces[0][i].piece_type == 'pawn' and board.pieces[0][i].color == 'white':
-            board.pieces[0][i] = Queen('white', 0, i)
-        if board.pieces[7][i] != None and board.pieces[7][i].piece_type == 'pawn' and board.pieces[7][i].color == 'white':
-            board.pieces[7][i] = Queen('white', 7, i)
-        if board.pieces[0][i] != None and board.pieces[0][i].piece_type == 'pawn' and board.pieces[0][i].color == 'black':
-            board.pieces[0][i] = Queen('black', 0, i)
-        if board.pieces[7][i] != None and board.pieces[7][i].piece_type == 'pawn' and board.pieces[7][i].color == 'black':
-            board.pieces[7][i] = Queen('black', 7, i)
+    for row, color in [(0, 'white'), (BOARD_SIZE-1, 'black')]:
+        for col in range(BOARD_SIZE):
+            piece = board.pieces[row][col]
+            if piece and piece.piece_type == 'pawn' and piece.color == color:
+                board.pieces[row][col] = Queen(color, row, col)
 
 # initializes the board with correct pieces
 def starting_board(side):
