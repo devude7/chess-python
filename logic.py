@@ -154,6 +154,35 @@ class Board:
         self.board_bottom = side
         self.pieces = starting_board(side)
         self.history = []  
+        self.move_stack = [] # for undo
+
+
+    def do_move(self, from_y, from_x, to_y, to_x):
+        piece = self.pieces[from_y][from_x]
+        captured = self.pieces[to_y][to_x]
+        self.pieces[to_y][to_x] = piece
+        self.pieces[from_y][from_x] = None
+
+        # Save previous position and first_move flag, for undo
+        move_info = (from_y, from_x, to_y, to_x, piece, captured, piece.y, piece.x, piece.first_move)
+        self.move_stack.append(move_info)
+
+        # Update piece position
+        piece.y = to_y
+        piece.x = to_x
+        piece.first_move = False
+        return move_info
+    
+
+    def undo_move(self):
+        move_info = self.move_stack.pop()
+        from_y, from_x, to_y, to_x, piece, captured, prev_y, prev_x, prev_first_move = move_info
+        self.pieces[from_y][from_x] = piece
+        self.pieces[to_y][to_x] = captured
+        piece.y = prev_y
+        piece.x = prev_x
+        piece.first_move = prev_first_move
+
 
     def is_repetition(self):
         if self.history.count(self.pieces) >= 3:
@@ -171,16 +200,19 @@ class Piece:
         self.image = ''
         self.first_move = True
 
-    # general function for moving pieces
+    # General function for moving pieces (returns True if move was made)
     def move(self, y, x, board):
         valid = []
-        for move in self.valid_moves(board):
-            board_test = copy.deepcopy(board)
-            board_test.pieces[self.y][self.x].move_test(move[0], move[1], board_test)
-            if not is_in_check(board_test, self.color):
-                valid.append(move)
-        # en passant setup(pawn normal moves)
-        if self.piece_type == 'pawn' and (y, x) in valid and self.first_move and board.pieces[y][x] == None:
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            move_info = board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                valid.append(move_to)
+            board.undo_move()
+
+        # en passant setup (pawn normal moves)
+        if self.piece_type == 'pawn' and (y, x) in valid and self.first_move and board.pieces[y][x] is None:
             if abs(self.y - y) == 2:
                 board.pieces[self.y][self.x] = None
                 board.pieces[y][x] = None
@@ -201,8 +233,9 @@ class Piece:
                 self.en_passant = False
                 board.history.append([row[:] for row in board.pieces])
                 return True
+
         # en passant capture
-        if ((board.board_bottom == 'white' and self.color == 'white') or (board.board_bottom == 'black' and self.color == 'black')) and self.piece_type == 'pawn' and (y, x) in valid and board.pieces[y + 1][x] != None and board.pieces[y + 1][x].piece_type == 'pawn' and board.pieces[y + 1][x].color != self.color and board.pieces[y + 1][x].en_passant == True:
+        if ((board.board_bottom == 'white' and self.color == 'white') or (board.board_bottom == 'black' and self.color == 'black')) and self.piece_type == 'pawn' and (y, x) in valid and board.pieces[y + 1][x] is not None and board.pieces[y + 1][x].piece_type == 'pawn' and board.pieces[y + 1][x].color != self.color and board.pieces[y + 1][x].en_passant:
             board.pieces[y + 1][x] = None
             board.pieces[self.y][self.x] = None
             board.pieces[y][x] = None
@@ -211,7 +244,7 @@ class Piece:
             board.pieces[y][x] = self
             self.first_move = False
             return True
-        if ((board.board_bottom == 'white' and self.color == 'black') or (board.board_bottom == 'black' and self.color == 'white')) and self.piece_type == 'pawn' and (y, x) in valid and board.pieces[y - 1][x] != None and board.pieces[y - 1][x].piece_type == 'pawn' and board.pieces[y - 1][x].color != self.color and board.pieces[y - 1][x].en_passant == True:
+        if ((board.board_bottom == 'white' and self.color == 'black') or (board.board_bottom == 'black' and self.color == 'white')) and self.piece_type == 'pawn' and (y, x) in valid and board.pieces[y - 1][x] is not None and board.pieces[y - 1][x].piece_type == 'pawn' and board.pieces[y - 1][x].color != self.color and board.pieces[y - 1][x].en_passant:
             board.pieces[y - 1][x] = None
             board.pieces[self.y][self.x] = None
             board.pieces[y][x] = None
@@ -220,7 +253,8 @@ class Piece:
             board.pieces[y][x] = self
             self.first_move = False
             return True
-        # castling
+
+        # castling 
         if self.piece_type == 'king' and (y, x) in valid and board.board_bottom == 'white' and self.color == 'white' and self.first_move:
             if x == 6:
                 board.pieces[7][7].move(7, 5, board)
@@ -305,6 +339,7 @@ class Piece:
                 self.first_move = False
                 board.history.append([row[:] for row in board.pieces])
                 return True
+
         # general move
         if (y, x) in valid:
             board.pieces[self.y][self.x] = None
@@ -317,8 +352,8 @@ class Piece:
             return True
         else:
             return False
-        
-    # to avoid endless loops (propably due to poor design :( ) 
+
+    # move_test (for checking if move is valid without side effects)
     def move_test(self, y, x, board):
         if (y, x) in self.valid_moves(board):
             board.pieces[self.y][self.x] = None
@@ -332,10 +367,17 @@ class Piece:
         else:
             return False
 
-    
     # function for moving pieces when in check
     def incheck_move(self, y, x, board):
-        if (y, x) in self.incheck_valid_moves(board):
+        legal_moves = []
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            move_info = board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                legal_moves.append(move_to)
+            board.undo_move()
+        if (y, x) in legal_moves:
             board.pieces[self.y][self.x] = None
             board.pieces[y][x] = None
             self.x = x
@@ -345,6 +387,7 @@ class Piece:
             return True
         else:
             return False
+
         
 
 class Pawn(Piece):
@@ -357,83 +400,81 @@ class Pawn(Piece):
             self.image = 'w_pawn'
         else:
             self.image = 'b_pawn'
-            
 
     def valid_moves(self, board):
         moves = []
         if board.board_bottom == 'white':
             if self.color == 'white':
-                if self.first_move and board.pieces[self.y - 2][self.x] == None and board.pieces[self.y - 1][self.x] == None:
+                if self.first_move and board.pieces[self.y - 2][self.x] is None and board.pieces[self.y - 1][self.x] is None:
                     moves.append((self.y - 2, self.x))
-                if board.pieces[self.y - 1][self.x] == None:
+                if board.pieces[self.y - 1][self.x] is None:
                     moves.append((self.y - 1, self.x))
-                if self.y - 1 > -1 and board.pieces[self.y - 1][self.x - 1] != None and board.pieces[self.y - 1][self.x - 1].color == 'black':
+                if self.y - 1 > -1 and self.x - 1 > -1 and board.pieces[self.y - 1][self.x - 1] is not None and board.pieces[self.y - 1][self.x - 1].color == 'black':
                     moves.append((self.y - 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y - 1][self.x + 1] != None and board.pieces[self.y - 1][self.x + 1].color == 'black':
+                if self.y - 1 > -1 and self.x + 1 < 8 and board.pieces[self.y - 1][self.x + 1] is not None and board.pieces[self.y - 1][self.x + 1].color == 'black':
                     moves.append((self.y - 1, self.x + 1))
-                if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] != None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'black' and board.pieces[self.y][self.x - 1].en_passant == True:
+                # en passant left
+                if self.y > 0 and self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'black' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y - 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] != None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant == True:
+                # en passant right
+                if self.y > 0 and self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y - 1, self.x + 1))
             else:
-                if self.first_move and board.pieces[self.y + 2][self.x] == None and board.pieces[self.y + 1][self.x] == None:
+                if self.first_move and board.pieces[self.y + 2][self.x] is None and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 2, self.x))
-                if  self.y +1 < 8 and board.pieces[self.y + 1][self.x] == None:
+                if self.y + 1 < 8 and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 1, self.x))
-                if self.y +1 < 8 and self.y + 1 < 8 and board.pieces[self.y + 1][self.x - 1] != None and board.pieces[self.y + 1][self.x - 1].color == 'white':
+                if self.y + 1 < 8 and self.x - 1 > -1 and board.pieces[self.y + 1][self.x - 1] is not None and board.pieces[self.y + 1][self.x - 1].color == 'white':
                     moves.append((self.y + 1, self.x - 1))
-                if self.y +1 < 8 and self.x + 1 < 8 and board.pieces[self.y + 1][self.x + 1] != None and board.pieces[self.y + 1][self.x + 1].color == 'white':
+                if self.y + 1 < 8 and self.x + 1 < 8 and board.pieces[self.y + 1][self.x + 1] is not None and board.pieces[self.y + 1][self.x + 1].color == 'white':
                     moves.append((self.y + 1, self.x + 1))
-                if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] != None and board.pieces[self.y][self.x - 1].piece_type == 'pawn'and board.pieces[self.y][self.x - 1].color == 'white' and board.pieces[self.y][self.x - 1].en_passant == True:
+                # en passant left
+                if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'white' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y + 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] != None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant == True:
+                # en passant right
+                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y + 1, self.x + 1))
         elif board.board_bottom == 'black':
             if self.color == 'white':
-                if self.first_move and board.pieces[self.y + 2][self.x] == None and board.pieces[self.y + 1][self.x] == None:
+                if self.first_move and board.pieces[self.y + 2][self.x] is None and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 2, self.x))
-                if board.pieces[self.y + 1][self.x] == None:
+                if self.y + 1 < 8 and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 1, self.x))
-                if self.y + 1 < 8 and board.pieces[self.y + 1][self.x - 1] != None and board.pieces[self.y + 1][self.x - 1].color == 'black':
+                if self.y + 1 < 8 and self.x - 1 > -1 and board.pieces[self.y + 1][self.x - 1] is not None and board.pieces[self.y + 1][self.x - 1].color == 'black':
                     moves.append((self.y + 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y + 1][self.x + 1] != None and board.pieces[self.y + 1][self.x + 1].color == 'black':
+                if self.y + 1 < 8 and self.x + 1 < 8 and board.pieces[self.y + 1][self.x + 1] is not None and board.pieces[self.y + 1][self.x + 1].color == 'black':
                     moves.append((self.y + 1, self.x + 1))
-                if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] != None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'black' and board.pieces[self.y][self.x - 1].en_passant == True:
+                if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'black' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y + 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] != None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant == True:
+                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y + 1, self.x + 1))
             else:
-                if self.first_move and board.pieces[self.y - 2][self.x] == None and board.pieces[self.y - 1][self.x] == None:
+                if self.first_move and board.pieces[self.y - 2][self.x] is None and board.pieces[self.y - 1][self.x] is None:
                     moves.append((self.y - 2, self.x))
-                if board.pieces[self.y - 1][self.x] == None:
+                if self.y - 1 > -1 and board.pieces[self.y - 1][self.x] is None:
                     moves.append((self.y - 1, self.x))
-                if self.y - 1 > -1 and board.pieces[self.y - 1][self.x - 1] != None and board.pieces[self.y - 1][self.x - 1].color == 'white':
+                if self.y - 1 > -1 and self.x - 1 > -1 and board.pieces[self.y - 1][self.x - 1] is not None and board.pieces[self.y - 1][self.x - 1].color == 'white':
                     moves.append((self.y - 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y - 1][self.x + 1] != None and board.pieces[self.y - 1][self.x + 1].color == 'white':
+                if self.y - 1 > -1 and self.x + 1 < 8 and board.pieces[self.y - 1][self.x + 1] is not None and board.pieces[self.y - 1][self.x + 1].color == 'white':
                     moves.append((self.y - 1, self.x + 1))
-                if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] != None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'white' and board.pieces[self.y][self.x - 1].en_passant == True:
+                if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'white' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y - 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] != None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant == True:
+                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y - 1, self.x + 1))
-        
-            
-        for move in moves:
-            if move[0] < 0 or move[0] > 7 or move[1] < 0 or move[1] > 7:
-                moves.remove(move)
-          
+
+        moves = [(r, c) for (r, c) in moves if 0 <= r < 8 and 0 <= c < 8]
         return moves
-    
+
     def incheck_valid_moves(self, board):
-        moves = self.valid_moves(board)
         valid = []
-                
-        for move in moves:
-            board_test = copy.deepcopy(board)
-            board_test.pieces[self.y][self.x].move(move[0], move[1], board_test)
-            if not is_in_check(board_test, self.color):
-                valid.append(move)
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                valid.append(move_to)
+            board.undo_move()
         return valid
-    
 
     
 class Rook(Piece):
@@ -478,18 +519,17 @@ class Rook(Piece):
                 x += dx
 
         return moves
-    
+
     def incheck_valid_moves(self, board):
-        moves = self.valid_moves(board)
         valid = []
-                
-        for move in moves:
-            board_test = copy.deepcopy(board)
-            board_test.pieces[self.y][self.x].move(move[0], move[1], board_test)
-            if not is_in_check(board_test, self.color):
-                valid.append(move)
-        return valid
-    
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                valid.append(move_to)
+            board.undo_move()
+        return valid 
         
 
 class Knight(Piece):
@@ -512,16 +552,16 @@ class Knight(Piece):
                 if piece_at_new_position is None or piece_at_new_position.color != self.color:
                     moves.append((new_y, new_x))
         return moves
-    
+
     def incheck_valid_moves(self, board):
-        moves = self.valid_moves(board)
         valid = []
-                
-        for move in moves:
-            board_test = copy.deepcopy(board)
-            board_test.pieces[self.y][self.x].move(move[0], move[1], board_test)
-            if not is_in_check(board_test, self.color):
-                valid.append(move)
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                valid.append(move_to)
+            board.undo_move()
         return valid
     
 
@@ -556,135 +596,117 @@ class Bishop(Piece):
                 x += dx
 
         return moves
-    
 
     def incheck_valid_moves(self, board):
-        moves = self.valid_moves(board)
         valid = []
-                
-        for move in moves:
-            board_test = copy.deepcopy(board)
-            board_test.pieces[self.y][self.x].move(move[0], move[1], board_test)
-            if not is_in_check(board_test, self.color):
-                valid.append(move)
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                valid.append(move_to)
+            board.undo_move()
         return valid
 
 
 class Queen(Piece):
-    
-        def __init__(self, color, x, y):
-            super().__init__(color, x, y)
-            self.piece_type = 'queen'
-            if self.color == 'white':
-                self.image = 'w_queen'
-            else:
-                self.image = 'b_queen'
-            
-        def valid_moves(self, board):
-            moves = []
-            directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    def __init__(self, color, x, y):
+        super().__init__(color, x, y)
+        self.piece_type = 'queen'
+        if self.color == 'white':
+            self.image = 'w_queen'
+        else:
+            self.image = 'b_queen'
 
-            for direction in directions:
-                for i in range(1, 8):
-                    new_y, new_x = self.y + i * direction[0], self.x + i * direction[1]
+    def valid_moves(self, board):
+        moves = []
+        directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
-                    if not (0 <= new_y < 8 and 0 <= new_x < 8):
-                        break
+        for direction in directions:
+            for i in range(1, 8):
+                new_y, new_x = self.y + i * direction[0], self.x + i * direction[1]
 
-                    if board.pieces[new_y][new_x] is None:
-                        moves.append((new_y, new_x))
-                    elif board.pieces[new_y][new_x].color != self.color:
-                        moves.append((new_y, new_x))
-                        break
-                    else:
-                        break
+                if not (0 <= new_y < 8 and 0 <= new_x < 8):
+                    break
 
-            return moves
-        
-        def incheck_valid_moves(self, board):
-            moves = self.valid_moves(board)
-            valid = []
-                    
-            for move in moves:
-                board_test = copy.deepcopy(board)
-                board_test.pieces[self.y][self.x].move(move[0], move[1], board_test)
-                if not is_in_check(board_test, self.color):
-                    valid.append(move)
-            return valid
-    
+                piece = board.pieces[new_y][new_x]
+                if piece is None:
+                    moves.append((new_y, new_x))
+                elif piece.color != self.color:
+                    moves.append((new_y, new_x))
+                    break
+                else:
+                    break
+
+        return moves
+
+    def incheck_valid_moves(self, board):
+        valid = []
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                valid.append(move_to)
+            board.undo_move()
+        return valid
 
 
 class King(Piece):
-    
-        def __init__(self, color, x, y):
-            super().__init__(color, x, y)
-            self.piece_type = 'king'
-            if self.color == 'white':
-                self.image = 'w_king'
-            else:
-                self.image = 'b_king'
 
-        def valid_moves(self, board):
-            moves = []
-            if self.y - 1 > -1 and self.x - 1 > -1 and (board.pieces[self.y - 1][self.x - 1] == None or board.pieces[self.y - 1][self.x - 1].color != self.color):
-                moves.append((self.y - 1, self.x - 1))
-            if self.y - 1 > -1 and (board.pieces[self.y - 1][self.x] == None or board.pieces[self.y - 1][self.x].color != self.color):
-                moves.append((self.y - 1, self.x))
-            if self.y - 1 > -1 and self.x + 1 < 8 and (board.pieces[self.y - 1][self.x + 1] == None or board.pieces[self.y - 1][self.x + 1].color != self.color):
-                moves.append((self.y - 1, self.x + 1))
-            if self.x - 1 > -1 and (board.pieces[self.y][self.x - 1] == None or board.pieces[self.y][self.x - 1].color != self.color):
-                moves.append((self.y, self.x - 1))
-            if self.x + 1 < 8 and (board.pieces[self.y][self.x + 1] == None or board.pieces[self.y][self.x + 1].color != self.color):
-                moves.append((self.y, self.x + 1))
-            if self.y + 1 < 8 and self.x - 1 > -1 and (board.pieces[self.y + 1][self.x - 1] == None or board.pieces[self.y + 1][self.x - 1].color != self.color):
-                moves.append((self.y + 1, self.x - 1))
-            if self.y + 1 < 8 and (board.pieces[self.y + 1][self.x] == None or board.pieces[self.y + 1][self.x].color != self.color):
-                moves.append((self.y + 1, self.x))
-            if self.y + 1 < 8 and self.x + 1 < 8 and (board.pieces[self.y + 1][self.x + 1] == None or board.pieces[self.y + 1][self.x + 1].color != self.color):
-                moves.append((self.y + 1, self.x + 1))
+    def __init__(self, color, x, y):
+        super().__init__(color, x, y)
+        self.piece_type = 'king'
+        self.image = 'w_king' if self.color == 'white' else 'b_king'
 
-            #castling
-            if board.board_bottom == 'white':
-                if self.color == 'white':
-                    if self.first_move and board.pieces[7][7] != None and board.pieces[7][7].first_move and board.pieces[7][7].piece_type == 'rook' and board.pieces[7][7].color == 'white' and board.pieces[7][6] == None and board.pieces[7][5] == None and is_attacked(board, (self.y, self.x) ,'white') == False:
-                        moves.append((7, 6))
-                    if self.first_move and board.pieces[7][0] != None and board.pieces[7][0].first_move and board.pieces[7][0].piece_type == 'rook' and board.pieces[7][0].color == 'white' and board.pieces[7][1] == None and board.pieces[7][2] == None and board.pieces[7][3] == None and is_attacked(board, (self.y, self.x) ,'white') == False:
-                        moves.append((7, 2))
-                else:
-                    if self.first_move and board.pieces[0][7] != None and board.pieces[0][7].first_move and board.pieces[0][7].piece_type == 'rook' and board.pieces[0][7].color == 'black' and board.pieces[0][6] == None and board.pieces[0][5] == None and is_attacked(board, (self.y, self.x) ,'black') == False:
-                        moves.append((0, 6))
-                    if self.first_move and board.pieces[0][0] != None and board.pieces[0][0].first_move and board.pieces[0][0].piece_type == 'rook' and board.pieces[0][0].color == 'black' and board.pieces[0][1] == None and board.pieces[0][2] == None and board.pieces[0][3] == None and is_attacked(board, (self.y, self.x) ,'black') == False:
-                        moves.append((0, 2))
-            elif board.board_bottom == 'black':
-                if self.color == 'white':
-                    if self.first_move and board.pieces[0][7] != None and board.pieces[0][7].first_move and board.pieces[0][7].piece_type == 'rook' and board.pieces[0][7].color == 'white' and board.pieces[0][6] == None and board.pieces[0][5] == None  and board.pieces[0][4] == None and is_attacked(board, (self.y, self.x) ,'white') == False:
-                        moves.append((0, 5))
-                    if self.first_move and board.pieces[0][0] != None and board.pieces[0][0].first_move and board.pieces[0][0].piece_type == 'rook' and board.pieces[0][0].color == 'white' and board.pieces[0][1] == None and board.pieces[0][2] == None and is_attacked(board, (self.y, self.x) ,'white') == False:
-                        moves.append((0, 1))
-                else:
-                    if self.first_move and board.pieces[7][7] != None and board.pieces[7][7].first_move and board.pieces[7][7].piece_type == 'rook' and board.pieces[7][7].color == 'black' and board.pieces[7][6] == None and board.pieces[7][5] == None and board.pieces[7][4] == None and is_attacked(board, (self.y, self.x) ,'black') == False:
-                        moves.append((7, 5))
-                    if self.first_move and board.pieces[7][0] != None and board.pieces[7][0].first_move and board.pieces[7][0].piece_type == 'rook' and board.pieces[7][0].color == 'black' and board.pieces[7][1] == None and board.pieces[7][2] == None and is_attacked(board, (self.y, self.x) ,'black') == False:
-                        moves.append((7, 1))
-            
-            if is_attacked(board, (self.y , self.x + 1), self.color) and (self.y, self.x + 2) in moves:
-                moves.remove((self.y, self.x + 2))
-            if is_attacked(board, (self.y , self.x - 1), self.color) and (self.y, self.x - 2) in moves:
-                moves.remove((self.y, self.x - 2))
+    def valid_moves(self, board):
+        moves = []
+        for dy in [-1, 0, 1]:
+            for dx in [-1, 0, 1]:
+                if dy == 0 and dx == 0:
+                    continue
+                new_y, new_x = self.y + dy, self.x + dx
+                if 0 <= new_y < 8 and 0 <= new_x < 8:
+                    piece = board.pieces[new_y][new_x]
+                    if piece is None or piece.color != self.color:
+                        moves.append((new_y, new_x))
 
-            return moves
-        
-        
-        def incheck_valid_moves(self, board):
-            moves = self.valid_moves(board)
-            valid = []
-                    
-            for move in moves:
-                board_test = copy.deepcopy(board)
-                board_test.pieces[self.y][self.x].move(move[0], move[1], board_test)
-                if not is_in_check(board_test, self.color):
-                    valid.append(move)
-            return valid
-    
+        def can_castle(rook_pos, between, target, side_check_positions):
+            rook = board.pieces[rook_pos[0]][rook_pos[1]]
+            if (self.first_move and rook is not None and
+                rook.piece_type == 'rook' and rook.color == self.color and rook.first_move):
+                # Squares between must be empty
+                if all(board.pieces[y][x] is None for y, x in between):
+                    # King can't castle out of, through, or into check
+                    if not any(is_attacked(board, pos, self.color) for pos in side_check_positions):
+                        moves.append(target)
+
+        if self.color == 'white' and board.board_bottom == 'white':
+            # Kingside: (7,4) to (7,6), Rook at (7,7)
+            can_castle((7,7), [(7,5), (7,6)], (7,6), [(7,4), (7,5), (7,6)])
+            # Queenside: (7,4) to (7,2), Rook at (7,0)
+            can_castle((7,0), [(7,1), (7,2), (7,3)], (7,2), [(7,4), (7,3), (7,2)])
+        elif self.color == 'black' and board.board_bottom == 'white':
+            can_castle((0,7), [(0,5), (0,6)], (0,6), [(0,4), (0,5), (0,6)])
+            can_castle((0,0), [(0,1), (0,2), (0,3)], (0,2), [(0,4), (0,3), (0,2)])
+        elif self.color == 'white' and board.board_bottom == 'black':
+            can_castle((0,7), [(0,5), (0,6), (0,4)], (0,5), [(0,4), (0,5)])
+            can_castle((0,0), [(0,1), (0,2)], (0,1), [(0,4), (0,3), (0,2), (0,1)])
+        elif self.color == 'black' and board.board_bottom == 'black':
+            can_castle((7,7), [(7,5), (7,6), (7,4)], (7,5), [(7,4), (7,5)])
+            can_castle((7,0), [(7,1), (7,2)], (7,1), [(7,4), (7,3), (7,2), (7,1)])
+
+        return moves
+
+    def incheck_valid_moves(self, board):
+        valid = []
+        for move_to in self.valid_moves(board):
+            from_y, from_x = self.y, self.x
+            to_y, to_x = move_to
+            board.do_move(from_y, from_x, to_y, to_x)
+            if not is_in_check(board, self.color):
+                valid.append(move_to)
+            board.undo_move()
+        return valid
 
     
