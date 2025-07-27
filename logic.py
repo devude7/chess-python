@@ -693,6 +693,69 @@ class King(Piece):
 
         return moves
 
+    def move(self, y, x, board):
+        valid = self.valid_moves(board)
+        # Castling logic
+        if (y, x) in valid and self.first_move:
+            # White on bottom
+            if self.color == 'white' and board.board_bottom == 'white':
+                # Kingside
+                if (y, x) == (7, 6):
+                    board.do_move(self.y, self.x, 7, 6)  # King move
+                    board.do_move(7, 7, 7, 5)            # Rook move
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+                # Queenside
+                if (y, x) == (7, 2):
+                    board.do_move(self.y, self.x, 7, 2)
+                    board.do_move(7, 0, 7, 3)
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+            # Black on bottom
+            elif self.color == 'black' and board.board_bottom == 'white':
+                if (y, x) == (0, 6):
+                    board.do_move(self.y, self.x, 0, 6)
+                    board.do_move(0, 7, 0, 5)
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+                if (y, x) == (0, 2):
+                    board.do_move(self.y, self.x, 0, 2)
+                    board.do_move(0, 0, 0, 3)
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+            # White on top
+            elif self.color == 'white' and board.board_bottom == 'black':
+                if (y, x) == (0, 5):
+                    board.do_move(self.y, self.x, 0, 5)
+                    board.do_move(0, 7, 0, 4)
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+                if (y, x) == (0, 1):
+                    board.do_move(self.y, self.x, 0, 1)
+                    board.do_move(0, 0, 0, 2)
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+            # Black on top
+            elif self.color == 'black' and board.board_bottom == 'black':
+                if (y, x) == (7, 5):
+                    board.do_move(self.y, self.x, 7, 5)
+                    board.do_move(7, 7, 7, 4)
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+                if (y, x) == (7, 1):
+                    board.do_move(self.y, self.x, 7, 1)
+                    board.do_move(7, 0, 7, 2)
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+
+        # General move
+        if (y, x) in valid:
+            board.do_move(self.y, self.x, y, x)
+            board.history.append([row[:] for row in board.pieces])
+            return True
+        else:
+            return False
+
     def incheck_valid_moves(self, board):
         valid = []
         for move_to in self.valid_moves(board):
