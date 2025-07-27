@@ -1,104 +1,92 @@
 import copy
 
+# Constants for endgame evaluation
+CHECKMATE_WHITE = 100
+CHECKMATE_BLACK = -100
+DRAW = 0
+STALEMATE = 'stalemate'
+ONGOING = 'no'
+BOARD_SIZE = 8
+
+# Helper to quickly check if side has any legal moves
+def has_any_legal_move(board, color):
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
+            piece = board.pieces[y][x]
+            if piece is not None and piece.color == color:
+                for move in piece.valid_moves(board):
+                    move_info = board.do_move(y, x, move[0], move[1])
+                    if not is_in_check(board, color):
+                        board.undo_move()
+                        return True
+                    board.undo_move()
+    return False
+
+
 # checks if game is over or draw
 def terminate(board):
-    movesW = []
-    movesB = []
-    if is_in_check(board, 'white'):
-        for y in range(8):
-            for x in range(8):
-                if board.pieces[y][x] != None and board.pieces[y][x].color == 'white':
-                    movesW.append(board.pieces[y][x].incheck_valid_moves(board))
-        movesW = [x for x in movesW if x]
-        if len(movesW) < 1:                      
-            return -100
-    
-    elif is_in_check(board, 'black'):
-        for y in range(8):
-            for x in range(8):
-                if board.pieces[y][x] != None and board.pieces[y][x].color == 'black':
-                    movesB.append(board.pieces[y][x].incheck_valid_moves(board))
-        movesB = [x for x in movesB if x]
-        if len(movesB) < 1:
-            return 100
-    elif not is_in_check(board, 'white') and not is_in_check(board, 'black'):
-        movesW = []
-        movesB = []
-        for y in range(8):
-            for x in range(8):
-                if board.pieces[y][x] != None and board.pieces[y][x].color == 'white':
-                    for move in board.pieces[y][x].valid_moves(board):
-                        board_test = copy.deepcopy(board)
-                        board_test.pieces[y][x].move_test(move[0], move[1], board_test)
-                        if not is_in_check(board_test, 'white'):
-                            movesW.append(move)
-                if board.pieces[y][x] != None and board.pieces[y][x].color == 'black':
-                    for move in board.pieces[y][x].valid_moves(board):
-                        board_test = copy.deepcopy(board)
-                        board_test.pieces[y][x].move_test(move[0], move[1], board_test)
-                        if not is_in_check(board_test, 'black'):
-                            movesB.append(move)                      
-        movesW = [x for x in movesW if x]
-        movesB = [x for x in movesB if x]
-        if len(movesW) == 0 or len(movesB) == 0:
-            return 'stalemate'
-    elif board.is_repetition():
-        return 0
-    piecesW = []
-    piecesB = []
-    #dead position draws
-    for y in range(8):
-        for x in range(8):
-            if board.pieces[y][x] != None and board.pieces[y][x].color == 'white':
-                if board.pieces[y][x].piece_type == 'bishop' and (x + y) % 2 == 0:
-                    piecesW.append('bishop-even')
-                elif board.pieces[y][x].piece_type == 'bishop' and (x + y) % 2 != 0:
-                    piecesW.append('bishop-odd')
+    # Checkmate or stalemate
+    for color, mate_score in [('white', CHECKMATE_BLACK), ('black', CHECKMATE_WHITE)]:
+        in_check = is_in_check(board, color)
+        has_move = has_any_legal_move(board, color)
+        if in_check and not has_move:
+            return mate_score  # Checkmate
+        if not in_check and not has_move:
+            return STALEMATE   # Stalemate
+
+    # Threefold repetition
+    if board.is_repetition():
+        return DRAW
+
+    # Dead position draw detection
+    # Gather piece types and their positions for each color
+    piecesW, piecesB = [], []
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
+            piece = board.pieces[y][x]
+            if piece is not None:
+                label = piece.piece_type
+                if label == 'bishop':
+                    label += '-even' if (x + y) % 2 == 0 else '-odd'
+                if piece.color == 'white':
+                    piecesW.append(label)
                 else:
-                    piecesW.append(board.pieces[y][x].piece_type)
-            if board.pieces[y][x] != None and board.pieces[y][x].color == 'black':
-                if board.pieces[y][x].piece_type == 'bishop' and (x + y) % 2 == 0:
-                    piecesB.append('bishop-even')
-                elif board.pieces[y][x].piece_type == 'bishop' and (x + y) % 2 != 0:
-                    piecesB.append('bishop-odd')
-                else:
-                    piecesB.append(board.pieces[y][x].piece_type)
-    if len(piecesW) == 1 and len(piecesB) == 1:
-        return 0
-    if len(piecesW) == 2 and len(piecesB) == 1 and 'knight' in piecesW:
-        return 0
-    if len(piecesW) == 1 and len(piecesB) == 2 and 'knight' in piecesB:
-        return 0
-    if len(piecesW) == 2 and len(piecesB) == 1 and ('bishop-even' in piecesW or 'bishop-odd' in piecesW):
-        return 0
-    if len(piecesW) == 1 and len(piecesB) == 2 and ('bishop-even' in piecesB or 'bishop-odd' in piecesB):
-        return 0
-    if len(piecesW) == 2 and len(piecesB) == 2 and (('bishop-even' in piecesW and 'bishop-odd' in piecesB) or ('bishop-odd' in piecesW and 'bishop-even' in piecesB)):
-        return 0
-    
-                             
-    return 'no'
+                    piecesB.append(label)
+    # King vs King
+    if piecesW == ['king'] and piecesB == ['king']:
+        return DRAW
+    # King and bishop/knight vs King
+    if (piecesW == ['king', 'knight'] and piecesB == ['king']) or (piecesB == ['king', 'knight'] and piecesW == ['king']):
+        return DRAW
+    if (piecesW == ['king', 'bishop-even'] and piecesB == ['king']) or (piecesW == ['king', 'bishop-odd'] and piecesB == ['king']):
+        return DRAW
+    if (piecesB == ['king', 'bishop-even'] and piecesW == ['king']) or (piecesB == ['king', 'bishop-odd'] and piecesW == ['king']):
+        return DRAW
+    # King and bishop vs king and bishop, both bishops on same color
+    if (set(piecesW) <= {'king', 'bishop-even'} and set(piecesB) <= {'king', 'bishop-even'}) or \
+       (set(piecesW) <= {'king', 'bishop-odd'} and set(piecesB) <= {'king', 'bishop-odd'}):
+        if len(piecesW) == 2 and len(piecesB) == 2:
+            return DRAW
+
+    return ONGOING
 
 
 # checks if the king is in check
 def is_in_check(board, color):
-    moves = []
-    for y in range(8):
-        for x in range(8):
-            if board.pieces[y][x] != None and board.pieces[y][x].color != color:
-                moves += board.pieces[y][x].valid_moves(board)
-            if board.pieces[y][x] != None and board.pieces[y][x].color == color and board.pieces[y][x].piece_type == 'king':
-                king = (y, x)
-    if king in moves:
-        return True
-    else: 
-        return False
+    king_pos = board.king_pos[color]
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
+            piece = board.pieces[y][x]
+            if piece and piece.color != color:
+                if king_pos in piece.valid_moves(board):
+                    return True
+    return False
     
 
 def is_attacked(board, position, color):
     attacked = []
-    for y in range(8):
-        for x in range(8):
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
             if board.pieces[y][x] != None and board.pieces[y][x].color != color and board.pieces[y][x].piece_type != 'king':
                 attacked += board.pieces[y][x].valid_moves(board)
     if position in attacked:
@@ -107,7 +95,7 @@ def is_attacked(board, position, color):
     
 
 def promotion(board):
-    for i in range(8):
+    for i in range(BOARD_SIZE):
         if board.pieces[0][i] != None and board.pieces[0][i].piece_type == 'pawn' and board.pieces[0][i].color == 'white':
             board.pieces[0][i] = Queen('white', 0, i)
         if board.pieces[7][i] != None and board.pieces[7][i].piece_type == 'pawn' and board.pieces[7][i].color == 'white':
@@ -141,8 +129,8 @@ def starting_board(side):
 
 # resets en passant for all pawns so that the move can be only used in the next opponent's turn
 def reset_en_passant(board, color):
-    for y in range(8):
-        for x in range(8):
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
             if board.pieces[y][x] != None and board.pieces[y][x].piece_type == 'pawn' and board.pieces[y][x].color == color:
                 board.pieces[y][x].en_passant = False
 
@@ -155,6 +143,15 @@ class Board:
         self.pieces = starting_board(side)
         self.history = []  
         self.move_stack = [] # for undo
+        self.king_pos = {'white': None, 'black': None}
+        self._init_king_positions()
+    
+    def _init_king_positions(self):
+        for y in range(BOARD_SIZE):
+            for x in range(BOARD_SIZE):
+                piece = self.pieces[y][x]
+                if piece and piece.piece_type == 'king':
+                    self.king_pos[piece.color] = (y, x)
 
 
     def do_move(self, from_y, from_x, to_y, to_x):
@@ -163,25 +160,28 @@ class Board:
         self.pieces[to_y][to_x] = piece
         self.pieces[from_y][from_x] = None
 
-        # Save previous position and first_move flag, for undo
-        move_info = (from_y, from_x, to_y, to_x, piece, captured, piece.y, piece.x, piece.first_move)
-        self.move_stack.append(move_info)
+        # Track king position before and after
+        old_king_pos = self.king_pos[piece.color]
+        if piece.piece_type == 'king':
+            self.king_pos[piece.color] = (to_y, to_x)
 
-        # Update piece position
+        move_info = (from_y, from_x, to_y, to_x, piece, captured, piece.y, piece.x, piece.first_move, old_king_pos)
+        self.move_stack.append(move_info)
         piece.y = to_y
         piece.x = to_x
         piece.first_move = False
         return move_info
-    
 
     def undo_move(self):
         move_info = self.move_stack.pop()
-        from_y, from_x, to_y, to_x, piece, captured, prev_y, prev_x, prev_first_move = move_info
+        from_y, from_x, to_y, to_x, piece, captured, prev_y, prev_x, prev_first_move, prev_king_pos = move_info
         self.pieces[from_y][from_x] = piece
         self.pieces[to_y][to_x] = captured
         piece.y = prev_y
         piece.x = prev_x
         piece.first_move = prev_first_move
+        if piece.piece_type == 'king':
+            self.king_pos[piece.color] = prev_king_pos
 
 
     def is_repetition(self):
@@ -411,42 +411,42 @@ class Pawn(Piece):
                     moves.append((self.y - 1, self.x))
                 if self.y - 1 > -1 and self.x - 1 > -1 and board.pieces[self.y - 1][self.x - 1] is not None and board.pieces[self.y - 1][self.x - 1].color == 'black':
                     moves.append((self.y - 1, self.x - 1))
-                if self.y - 1 > -1 and self.x + 1 < 8 and board.pieces[self.y - 1][self.x + 1] is not None and board.pieces[self.y - 1][self.x + 1].color == 'black':
+                if self.y - 1 > -1 and self.x + 1 < BOARD_SIZE and board.pieces[self.y - 1][self.x + 1] is not None and board.pieces[self.y - 1][self.x + 1].color == 'black':
                     moves.append((self.y - 1, self.x + 1))
                 # en passant left
                 if self.y > 0 and self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'black' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y - 1, self.x - 1))
                 # en passant right
-                if self.y > 0 and self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant:
+                if self.y > 0 and self.x + 1 < BOARD_SIZE and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y - 1, self.x + 1))
             else:
                 if self.first_move and board.pieces[self.y + 2][self.x] is None and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 2, self.x))
-                if self.y + 1 < 8 and board.pieces[self.y + 1][self.x] is None:
+                if self.y + 1 < BOARD_SIZE and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 1, self.x))
-                if self.y + 1 < 8 and self.x - 1 > -1 and board.pieces[self.y + 1][self.x - 1] is not None and board.pieces[self.y + 1][self.x - 1].color == 'white':
+                if self.y + 1 < BOARD_SIZE and self.x - 1 > -1 and board.pieces[self.y + 1][self.x - 1] is not None and board.pieces[self.y + 1][self.x - 1].color == 'white':
                     moves.append((self.y + 1, self.x - 1))
-                if self.y + 1 < 8 and self.x + 1 < 8 and board.pieces[self.y + 1][self.x + 1] is not None and board.pieces[self.y + 1][self.x + 1].color == 'white':
+                if self.y + 1 < BOARD_SIZE and self.x + 1 < BOARD_SIZE and board.pieces[self.y + 1][self.x + 1] is not None and board.pieces[self.y + 1][self.x + 1].color == 'white':
                     moves.append((self.y + 1, self.x + 1))
                 # en passant left
                 if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'white' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y + 1, self.x - 1))
                 # en passant right
-                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant:
+                if self.x + 1 < BOARD_SIZE and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y + 1, self.x + 1))
         elif board.board_bottom == 'black':
             if self.color == 'white':
                 if self.first_move and board.pieces[self.y + 2][self.x] is None and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 2, self.x))
-                if self.y + 1 < 8 and board.pieces[self.y + 1][self.x] is None:
+                if self.y + 1 < BOARD_SIZE and board.pieces[self.y + 1][self.x] is None:
                     moves.append((self.y + 1, self.x))
-                if self.y + 1 < 8 and self.x - 1 > -1 and board.pieces[self.y + 1][self.x - 1] is not None and board.pieces[self.y + 1][self.x - 1].color == 'black':
+                if self.y + 1 < BOARD_SIZE and self.x - 1 > -1 and board.pieces[self.y + 1][self.x - 1] is not None and board.pieces[self.y + 1][self.x - 1].color == 'black':
                     moves.append((self.y + 1, self.x - 1))
-                if self.y + 1 < 8 and self.x + 1 < 8 and board.pieces[self.y + 1][self.x + 1] is not None and board.pieces[self.y + 1][self.x + 1].color == 'black':
+                if self.y + 1 < BOARD_SIZE and self.x + 1 < BOARD_SIZE and board.pieces[self.y + 1][self.x + 1] is not None and board.pieces[self.y + 1][self.x + 1].color == 'black':
                     moves.append((self.y + 1, self.x + 1))
                 if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'black' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y + 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant:
+                if self.x + 1 < BOARD_SIZE and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'black' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y + 1, self.x + 1))
             else:
                 if self.first_move and board.pieces[self.y - 2][self.x] is None and board.pieces[self.y - 1][self.x] is None:
@@ -455,14 +455,14 @@ class Pawn(Piece):
                     moves.append((self.y - 1, self.x))
                 if self.y - 1 > -1 and self.x - 1 > -1 and board.pieces[self.y - 1][self.x - 1] is not None and board.pieces[self.y - 1][self.x - 1].color == 'white':
                     moves.append((self.y - 1, self.x - 1))
-                if self.y - 1 > -1 and self.x + 1 < 8 and board.pieces[self.y - 1][self.x + 1] is not None and board.pieces[self.y - 1][self.x + 1].color == 'white':
+                if self.y - 1 > -1 and self.x + 1 < BOARD_SIZE and board.pieces[self.y - 1][self.x + 1] is not None and board.pieces[self.y - 1][self.x + 1].color == 'white':
                     moves.append((self.y - 1, self.x + 1))
                 if self.x - 1 > -1 and board.pieces[self.y][self.x - 1] is not None and board.pieces[self.y][self.x - 1].piece_type == 'pawn' and board.pieces[self.y][self.x - 1].color == 'white' and board.pieces[self.y][self.x - 1].en_passant:
                     moves.append((self.y - 1, self.x - 1))
-                if self.x + 1 < 8 and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant:
+                if self.x + 1 < BOARD_SIZE and board.pieces[self.y][self.x + 1] is not None and board.pieces[self.y][self.x + 1].piece_type == 'pawn' and board.pieces[self.y][self.x + 1].color == 'white' and board.pieces[self.y][self.x + 1].en_passant:
                     moves.append((self.y - 1, self.x + 1))
 
-        moves = [(r, c) for (r, c) in moves if 0 <= r < 8 and 0 <= c < 8]
+        moves = [(r, c) for (r, c) in moves if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE]
         return moves
 
     def incheck_valid_moves(self, board):
@@ -493,7 +493,7 @@ class Rook(Piece):
         # Check moves along the vertical direction
         for dy in [-1, 1]:
             y = self.y + dy
-            while 0 <= y < 8:
+            while 0 <= y < BOARD_SIZE:
                 piece_at_position = board.pieces[y][self.x]
                 if piece_at_position is None:
                     moves.append((y, self.x))
@@ -507,7 +507,7 @@ class Rook(Piece):
         # Check moves along the horizontal direction
         for dx in [-1, 1]:
             x = self.x + dx
-            while 0 <= x < 8:
+            while 0 <= x < BOARD_SIZE:
                 piece_at_position = board.pieces[self.y][x]
                 if piece_at_position is None:
                     moves.append((self.y, x))
@@ -547,7 +547,7 @@ class Knight(Piece):
         directions = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)]
         for dy, dx in directions:
             new_y, new_x = self.y + dy, self.x + dx
-            if 0 <= new_y < 8 and 0 <= new_x < 8:
+            if 0 <= new_y < BOARD_SIZE and 0 <= new_x < BOARD_SIZE:
                 piece_at_new_position = board.pieces[new_y][new_x]
                 if piece_at_new_position is None or piece_at_new_position.color != self.color:
                     moves.append((new_y, new_x))
@@ -583,7 +583,7 @@ class Bishop(Piece):
 
         for dy, dx in directions:
             y, x = self.y + dy, self.x + dx
-            while 0 <= y < 8 and 0 <= x < 8:
+            while 0 <= y < BOARD_SIZE and 0 <= x < BOARD_SIZE:
                 piece_at_position = board.pieces[y][x]
                 if piece_at_position is None:
                     moves.append((y, x))
@@ -623,10 +623,10 @@ class Queen(Piece):
         directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
         for direction in directions:
-            for i in range(1, 8):
+            for i in range(1, BOARD_SIZE):
                 new_y, new_x = self.y + i * direction[0], self.x + i * direction[1]
 
-                if not (0 <= new_y < 8 and 0 <= new_x < 8):
+                if not (0 <= new_y < BOARD_SIZE and 0 <= new_x < BOARD_SIZE):
                     break
 
                 piece = board.pieces[new_y][new_x]
@@ -666,7 +666,7 @@ class King(Piece):
                 if dy == 0 and dx == 0:
                     continue
                 new_y, new_x = self.y + dy, self.x + dx
-                if 0 <= new_y < 8 and 0 <= new_x < 8:
+                if 0 <= new_y < BOARD_SIZE and 0 <= new_x < BOARD_SIZE:
                     piece = board.pieces[new_y][new_x]
                     if piece is None or piece.color != self.color:
                         moves.append((new_y, new_x))
