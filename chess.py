@@ -24,6 +24,8 @@ ai = None
 side = None
 selected = 99
 
+minimax_size = 3
+
 
 # draw the board in pygame
 def draw_board():
@@ -223,7 +225,7 @@ while run:
             text = big_font.render("AI makes move...", True, black)
             screen.blit(text, (400, 870))  
             pygame.display.flip()  
-            best_move = minimax(board, 2, turn)  
+            best_move = minimax(board, minimax_size, turn)  
             board.pieces[best_move[0]][best_move[1]].move(best_move[2], best_move[3], board)  
             turn = board.board_bottom
             selected = 99
