@@ -2,6 +2,7 @@ import pygame
 import copy
 from logic import *
 from ai import minimax
+import random
 
 # initialize pygame
 pygame.init()
@@ -123,16 +124,26 @@ while run:
         draw_pieces()
         promotion(board)
         term = terminate(board)
-        rep = board.is_repetition() 
+        rep = board.is_repetition()
+
+        if term == 100 and winner == '-':
+            winner = 'White'
+        elif term == -100 and winner == '-':
+            winner = 'Black'
+        elif term in ['stalemate', 0] and winner == '-':
+            winner = 'Draw'
+
         if restart == True:
             board = Board(side)
             selected = 99
             turn = 'white'
             winner = '-'
             restart = False
+
         if winner != '-':
             text = big_font.render(f"{winner} wins", True, black)
             screen.blit(text, (400, 870))
+
         if turn == 'white' and winner == '-':
             text = big_font.render("White's turn", True, black)
             if rep == True:
@@ -161,10 +172,12 @@ while run:
                 else:
                     text = big_font.render("Black is in check", True, black)
             screen.blit(text, (400, 870))
+
         if turn == 'white':
             reset_en_passant(board, 'white')
         else:
             reset_en_passant(board, 'black')
+
         if selected != 99 and winner == '-': # if a piece is selected, draw the valid moves
             if is_in_check(board, turn):
                 valid_moves = selected.incheck_valid_moves(board)
@@ -177,9 +190,12 @@ while run:
                     if not is_in_check(board_test, selected_test.color):
                         valid_moves.append(move)
             draw_valid_moves(valid_moves)
+
         for event in pygame.event.get():
+            
             if event.type == pygame.QUIT:
                 run = False
+
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 pos = pygame.mouse.get_pos()
                 x = (pos[0] - 135) // 90
@@ -225,9 +241,10 @@ while run:
             text = big_font.render("AI makes move...", True, black)
             screen.blit(text, (400, 870))  
             pygame.display.flip()  
-            _, best_move = minimax(board, minimax_size, turn)  
-            if best_move is not None:
-                from_y, from_x, to_y, to_x = best_move
+            _, best_moves = minimax(board, minimax_size, turn)
+            if best_moves:
+                move = random.choice(best_moves)
+                from_y, from_x, to_y, to_x = move
                 board.pieces[from_y][from_x].move(to_y, to_x, board)
             turn = board.board_bottom
             selected = 99

@@ -1,5 +1,3 @@
-import copy
-
 # Constants for endgame evaluation
 CHECKMATE_WHITE = 100
 CHECKMATE_BLACK = -100
@@ -99,6 +97,7 @@ def promotion(board):
             piece = board.pieces[row][col]
             if piece and piece.piece_type == 'pawn' and piece.color == color:
                 board.pieces[row][col] = Queen(color, row, col)
+
 
 # initializes the board with correct pieces
 def starting_board(side):
