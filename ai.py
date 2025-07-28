@@ -77,31 +77,41 @@ def Min_Value(board, value, color, depth):
 
 
 
-def minimax(board, depth, color):
-    """
-    Returns the optimal action for the current player on the board.
-    """
+def minimax(board, depth, color, alpha=-math.inf, beta=math.inf):
     if depth == 0 or terminate(board) != 'no':
-        return score(board)
-        
-    moves = []
-    alpha = math.inf
-    beta = -math.inf
-    
+        return score(board), None
+
+    best_moves = []
     if color == 'white':
+        best_eval = -math.inf
         for move in all_valid_moves(board, color):
-            #after first move is calculated, it assigns best alpha value for maximizing player each time new action is calculated
-            if moves:
-                alpha = max(moves, key=lambda x: x[1])[1]
-            moves.append((move, Min_Value(action(board, move), alpha, 'black', depth-1)))
-        optimal_move = max(moves, key=lambda x: x[1])[0]
-        return optimal_move
-    
-    elif color == 'black':
+            from_y, from_x, to_y, to_x = move
+            board.do_move(from_y, from_x, to_y, to_x)
+            eval, _ = minimax(board, depth-1, 'black', alpha, beta)
+            board.undo_move()
+            if eval > best_eval:
+                best_eval = eval
+                best_moves = [move]
+            elif eval == best_eval:
+                best_moves.append(move)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break
+        return best_eval, best_moves
+
+    else:
+        best_eval = math.inf
         for move in all_valid_moves(board, color):
-            #after first move is calculated, it assigns best beta value for minimizing player each time new action is calculated
-            if moves:
-                beta = min(moves, key=lambda x: x[1])[1]
-            moves.append((move, Max_Value(action(board, move), beta, 'white', depth-1)))
-        optimal_move = min(moves, key=lambda x: x[1])[0]
-        return optimal_move
+            from_y, from_x, to_y, to_x = move
+            board.do_move(from_y, from_x, to_y, to_x)
+            eval, _ = minimax(board, depth-1, 'white', alpha, beta)
+            board.undo_move()
+            if eval < best_eval:
+                best_eval = eval
+                best_moves = [move]
+            elif eval == best_eval:
+                best_moves.append(move)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break
+        return best_eval, best_moves
