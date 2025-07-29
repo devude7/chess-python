@@ -81,37 +81,34 @@ def minimax(board, depth, color, alpha=-math.inf, beta=math.inf):
     if depth == 0 or terminate(board) != 'no':
         return score(board), None
 
-    best_moves = []
+    best_move = None
+
     if color == 'white':
-        best_eval = -math.inf
+        max_eval = -math.inf
         for move in all_valid_moves(board, color):
             from_y, from_x, to_y, to_x = move
             board.do_move(from_y, from_x, to_y, to_x)
             eval, _ = minimax(board, depth-1, 'black', alpha, beta)
             board.undo_move()
-            if eval > best_eval:
-                best_eval = eval
-                best_moves = [move]
-            elif eval == best_eval:
-                best_moves.append(move)
+            if eval > max_eval:
+                max_eval = eval
+                best_move = move
             alpha = max(alpha, eval)
             if beta <= alpha:
                 break
-        return best_eval, best_moves
+        return max_eval, best_move
 
     else:
-        best_eval = math.inf
+        min_eval = math.inf
         for move in all_valid_moves(board, color):
             from_y, from_x, to_y, to_x = move
             board.do_move(from_y, from_x, to_y, to_x)
             eval, _ = minimax(board, depth-1, 'white', alpha, beta)
             board.undo_move()
-            if eval < best_eval:
-                best_eval = eval
-                best_moves = [move]
-            elif eval == best_eval:
-                best_moves.append(move)
+            if eval < min_eval:
+                min_eval = eval
+                best_move = move
             beta = min(beta, eval)
             if beta <= alpha:
                 break
-        return best_eval, best_moves
+        return min_eval, best_move
