@@ -1,4 +1,4 @@
-from logic import terminate
+from logic import terminate, promotion
 import math
 from copy import deepcopy
 
@@ -88,6 +88,7 @@ def minimax(board, depth, color, alpha=-math.inf, beta=math.inf):
         for move in all_valid_moves(board, color):
             from_y, from_x, to_y, to_x = move
             board.do_move(from_y, from_x, to_y, to_x)
+            promotion(board)
             eval, _ = minimax(board, depth-1, 'black', alpha, beta)
             board.undo_move()
             if eval > max_eval:

@@ -92,11 +92,23 @@ def is_attacked(board, position, color):
     
 
 def promotion(board):
-    for row, color in [(0, 'white'), (BOARD_SIZE-1, 'black')]:
+    if board.board_bottom == 'white':
         for col in range(BOARD_SIZE):
-            piece = board.pieces[row][col]
-            if piece and piece.piece_type == 'pawn' and piece.color == color:
-                board.pieces[row][col] = Queen(color, row, col)
+            piece = board.pieces[0][col]
+            if piece and piece.piece_type == 'pawn' and piece.color == 'white':
+                board.pieces[0][col] = Queen('white', 0, col)
+            piece = board.pieces[7][col]
+            if piece and piece.piece_type == 'pawn' and piece.color == 'black':
+                board.pieces[7][col] = Queen('black', 7, col)
+
+    elif board.board_bottom == 'black':
+        for col in range(BOARD_SIZE):
+            piece = board.pieces[7][col]
+            if piece and piece.piece_type == 'pawn' and piece.color == 'white':
+                board.pieces[7][col] = Queen('white', 7, col)
+            piece = board.pieces[0][col]
+            if piece and piece.piece_type == 'pawn' and piece.color == 'black':
+                board.pieces[0][col] = Queen('black', 0, col)
 
 
 # initializes the board with correct pieces
