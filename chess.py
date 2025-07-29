@@ -2,7 +2,6 @@ import pygame
 import copy
 from logic import *
 from ai import minimax
-import random
 
 # initialize pygame
 pygame.init()
@@ -25,7 +24,7 @@ ai = None
 side = None
 selected = 99
 
-minimax_size = 4
+MINIMAX_DEPTH = 4
 
 
 # draw the board in pygame
@@ -241,11 +240,10 @@ while run:
             text = big_font.render("AI makes move...", True, black)
             screen.blit(text, (400, 870))  
             pygame.display.flip()  
-            _, best_moves = minimax(board, minimax_size, turn)
-            if best_moves:
-                move = random.choice(best_moves)
+            _, move = minimax(board, MINIMAX_DEPTH, turn)
+            if move:
                 from_y, from_x, to_y, to_x = move
-                board.pieces[from_y][from_x].move(to_y, to_x, board)
+                board.do_move(from_y, from_x, to_y, to_x)
             turn = board.board_bottom
             selected = 99
 
