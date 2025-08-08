@@ -1,4 +1,4 @@
-from logic import terminate, promotion
+from logic import terminate
 import math
 from copy import deepcopy
 
@@ -50,8 +50,7 @@ def Max_Value(board, value, color, depth):
         return score(board)
 
     v = -math.inf
-    if terminate(board) != 'no':
-        return terminate(score)
+
     for move in all_valid_moves(board, color):
         v = max(v, Min_Value(action(board, move), value, 'black', depth-1))
         #Alpha-beta pruning. The 'value not in' part assures that it doesn't affect first move otherwise it wouldn't work properly 
@@ -66,8 +65,7 @@ def Min_Value(board, value, color, depth):
         return score(board)
 
     v = math.inf
-    if terminate(board) != 'no':
-        return terminate(score)
+
     for move in all_valid_moves(board, color):
         v = min(v, Max_Value(action(board, move), value, 'white', depth-1))
         #Alpha-beta pruning. The 'value not in' part assures that it doesn't affect first possible move otherwise it wouldn't work properly
@@ -88,7 +86,6 @@ def minimax(board, depth, color, alpha=-math.inf, beta=math.inf):
         for move in all_valid_moves(board, color):
             from_y, from_x, to_y, to_x = move
             board.do_move(from_y, from_x, to_y, to_x)
-            promotion(board)
             eval, _ = minimax(board, depth-1, 'black', alpha, beta)
             board.undo_move()
             if eval > max_eval:

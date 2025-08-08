@@ -121,7 +121,6 @@ while run:
     else:
         draw_board()
         draw_pieces()
-        promotion(board)
         term = terminate(board)
         rep = board.is_repetition()
 
@@ -214,6 +213,7 @@ while run:
                                     selected = 99
                             else:
                                 if selected.move(y, x, board):
+                                    promotion(board)
                                     turn = 'black'
                                     selected = 99
                 elif turn == 'black': # if it is black's turn, select a black piece and move it
@@ -229,13 +229,13 @@ while run:
                                     selected = 99
                             else:
                                 if selected.move(y, x, board):
+                                    promotion(board)
                                     turn = 'white'
                                     selected = 99
 
         if ai == True and turn != board.board_bottom:
             draw_board()
             draw_pieces()
-            promotion(board)
             pygame.draw.rect(screen, 'grey', (400, 870, text.get_width(), text.get_height()))
             text = big_font.render("AI makes move...", True, black)
             screen.blit(text, (400, 870))  
@@ -244,6 +244,7 @@ while run:
             if move:
                 from_y, from_x, to_y, to_x = move
                 board.do_move(from_y, from_x, to_y, to_x)
+                promotion(board)
             turn = board.board_bottom
             selected = 99
 

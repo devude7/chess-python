@@ -180,7 +180,12 @@ class Board:
 
     def undo_move(self):
         move_info = self.move_stack.pop()
-        from_y, from_x, to_y, to_x, piece, captured, prev_y, prev_x, prev_first_move, prev_king_pos = move_info
+        extra = None
+        if len(move_info) == 11:
+            from_y, from_x, to_y, to_x, piece, captured, prev_y, prev_x, prev_first_move, prev_king_pos, extra = move_info
+        else:
+            from_y, from_x, to_y, to_x, piece, captured, prev_y, prev_x, prev_first_move, prev_king_pos = move_info
+
         self.pieces[from_y][from_x] = piece
         self.pieces[to_y][to_x] = captured
         piece.y = prev_y
@@ -188,6 +193,11 @@ class Board:
         piece.first_move = prev_first_move
         if piece.piece_type == 'king':
             self.king_pos[piece.color] = prev_king_pos
+
+        # restore en passant captured pawn
+        if extra and extra[0] == 'ep':
+            _, cy, cx = extra
+            pass
 
 
     def is_repetition(self):
@@ -208,194 +218,110 @@ class Piece:
 
     # General function for moving pieces (returns True if move was made)
     def move(self, y, x, board):
-        valid = []
-        for move_to in self.valid_moves(board):
-            from_y, from_x = self.y, self.x
-            to_y, to_x = move_to
-            move_info = board.do_move(from_y, from_x, to_y, to_x)
+
+        legal = []
+        for ty, tx in self.valid_moves(board):
+            fy, fx = self.y, self.x
+            info = board.do_move(fy, fx, ty, tx)
             if not is_in_check(board, self.color):
-                valid.append(move_to)
+                legal.append((ty, tx))
             board.undo_move()
 
-        # en passant setup (pawn normal moves)
-        if self.piece_type == 'pawn' and (y, x) in valid and self.first_move and board.pieces[y][x] is None:
-            if abs(self.y - y) == 2:
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                self.en_passant = True
-                board.history.append([row[:] for row in board.pieces])
-                return True
-            else:
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                self.en_passant = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-
-        # en passant capture
-        if ((board.board_bottom == 'white' and self.color == 'white') or (board.board_bottom == 'black' and self.color == 'black')) and self.piece_type == 'pawn' and (y, x) in valid and board.pieces[y + 1][x] is not None and board.pieces[y + 1][x].piece_type == 'pawn' and board.pieces[y + 1][x].color != self.color and board.pieces[y + 1][x].en_passant:
-            board.pieces[y + 1][x] = None
-            board.pieces[self.y][self.x] = None
-            board.pieces[y][x] = None
-            self.x = x
-            self.y = y
-            board.pieces[y][x] = self
-            self.first_move = False
-            return True
-        if ((board.board_bottom == 'white' and self.color == 'black') or (board.board_bottom == 'black' and self.color == 'white')) and self.piece_type == 'pawn' and (y, x) in valid and board.pieces[y - 1][x] is not None and board.pieces[y - 1][x].piece_type == 'pawn' and board.pieces[y - 1][x].color != self.color and board.pieces[y - 1][x].en_passant:
-            board.pieces[y - 1][x] = None
-            board.pieces[self.y][self.x] = None
-            board.pieces[y][x] = None
-            self.x = x
-            self.y = y
-            board.pieces[y][x] = self
-            self.first_move = False
-            return True
-
-        # castling 
-        if self.piece_type == 'king' and (y, x) in valid and board.board_bottom == 'white' and self.color == 'white' and self.first_move:
-            if x == 6:
-                board.pieces[7][7].move(7, 5, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-            elif x == 2:
-                board.pieces[7][0].move(7, 3, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-        if self.piece_type == 'king' and (y, x) in valid and board.board_bottom == 'white' and self.color == 'black' and self.first_move:
-            if x == 6:
-                board.pieces[0][7].move(0, 5, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-            elif x == 2:
-                board.pieces[0][0].move(0, 3, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True 
-        if self.piece_type == 'king' and (y, x) in valid and board.board_bottom == 'black' and self.color == 'white' and self.first_move:
-            if x == 5:
-                board.pieces[0][7].move(0, 4, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-            elif x == 1:
-                board.pieces[0][0].move(0, 2, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-        if self.piece_type == 'king' and (y, x) in valid and board.board_bottom == 'black' and self.color == 'black' and self.first_move:
-            if x == 5:
-                board.pieces[7][7].move(7, 4, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-            elif x == 1:
-                board.pieces[7][0].move(7, 2, board)
-                board.pieces[self.y][self.x] = None
-                board.pieces[y][x] = None
-                self.x = x
-                self.y = y
-                board.pieces[y][x] = self
-                self.first_move = False
-                board.history.append([row[:] for row in board.pieces])
-                return True
-
-        # general move
-        if (y, x) in valid:
-            board.pieces[self.y][self.x] = None
-            board.pieces[y][x] = None
-            self.x = x
-            self.y = y
-            board.pieces[y][x] = self
-            self.first_move = False
-            board.history.append([row[:] for row in board.pieces])
-            return True
-        else:
+        if (y, x) not in legal:
             return False
 
-    # move_test (for checking if move is valid without side effects)
+        # --- EN PASSANT ---
+        if self.piece_type == 'pawn':
+            dy = y - self.y
+            dx = x - self.x
+            if abs(dx) == 1 and ((board.pieces[y][x] is None) or getattr(board.pieces[y][x], 'ghost', False)):
+                cap_y = y + (1 if (board.board_bottom == 'white' and self.color == 'white') else
+                            -1 if (board.board_bottom == 'white' and self.color == 'black') else
+                            -1 if (board.board_bottom == 'black' and self.color == 'white') else
+                            1)  
+                captured = board.pieces[cap_y][x]
+                if (captured is not None and captured.piece_type == 'pawn'
+                        and captured.color != self.color and getattr(captured, 'en_passant', False)):
+                    
+                    info = board.do_move(self.y, self.x, y, x)
+                    board.pieces[cap_y][x] = None
+                    fy, fx, ty, tx, piece, cap, py, px, pfm, oldk = board.move_stack.pop()
+                    board.move_stack.append((fy, fx, ty, tx, piece, cap, py, px, pfm, oldk, ('ep', cap_y, x)))
+                    board.history.append([row[:] for row in board.pieces])
+                    return True
+
+        # --- CASTLING  ---
+        if self.piece_type == 'king' and self.first_move:
+            ky, kx = self.y, self.x
+           
+            if (y, x) in [(7,6), (7,2), (0,6), (0,2), (0,5), (0,1), (7,5), (7,1)]:  
+
+                def castle(rook_from, rook_to):
+                    board.do_move(ky, kx, y, x)
+                    board.do_move(rook_from[0], rook_from[1], rook_to[0], rook_to[1])
+                    board.history.append([row[:] for row in board.pieces])
+
+                if self.color == 'white' and board.board_bottom == 'white':
+                    if (y, x) == (7,6):  
+                        castle((7,7), (7,5))
+                        return True
+                    if (y, x) == (7,2):  
+                        castle((7,0), (7,3))
+                        return True
+                elif self.color == 'black' and board.board_bottom == 'white':
+                    if (y, x) == (0,6):
+                        castle((0,7), (0,5))
+                        return True
+                    if (y, x) == (0,2):
+                        castle((0,0), (0,3))
+                        return True
+                elif self.color == 'white' and board.board_bottom == 'black':
+                    if (y, x) == (0,5):
+                        castle((0,7), (0,4))
+                        return True
+                    if (y, x) == (0,1):
+                        castle((0,0), (0,2))
+                        return True
+                elif self.color == 'black' and board.board_bottom == 'black':
+                    if (y, x) == (7,5):
+                        castle((7,7), (7,4))
+                        return True
+                    if (y, x) == (7,1):
+                        castle((7,0), (7,2))
+                        return True
+
+        # --- GENERAL MOVE ---
+        board.do_move(self.y, self.x, y, x)
+        board.history.append([row[:] for row in board.pieces])
+
+        # set/reset en_passant flag for pawns 
+        if self.piece_type == 'pawn':
+            self.en_passant = (abs(y - (board.move_stack[-1][0])) == 2) 
+        return True
+
+
     def move_test(self, y, x, board):
         if (y, x) in self.valid_moves(board):
-            board.pieces[self.y][self.x] = None
-            board.pieces[y][x] = None
-            self.x = x
-            self.y = y
-            board.pieces[y][x] = self
-            self.first_move = False
+            info = board.do_move(self.y, self.x, y, x)
+            return True
+        return False
+
+
+    def incheck_move(self, y, x, board):
+        legal = []
+        for ty, tx in self.valid_moves(board):
+            fy, fx = self.y, self.x
+            info = board.do_move(fy, fx, ty, tx)
+            if not is_in_check(board, self.color):
+                legal.append((ty, tx))
+            board.undo_move()
+        if (y, x) in legal:
+            board.do_move(self.y, self.x, y, x)
             board.history.append([row[:] for row in board.pieces])
             return True
-        else:
-            return False
-
-    # function for moving pieces when in check
-    def incheck_move(self, y, x, board):
-        legal_moves = []
-        for move_to in self.valid_moves(board):
-            from_y, from_x = self.y, self.x
-            to_y, to_x = move_to
-            move_info = board.do_move(from_y, from_x, to_y, to_x)
-            if not is_in_check(board, self.color):
-                legal_moves.append(move_to)
-            board.undo_move()
-        if (y, x) in legal_moves:
-            board.pieces[self.y][self.x] = None
-            board.pieces[y][x] = None
-            self.x = x
-            self.y = y
-            board.pieces[y][x] = self
-            self.first_move = False
-            return True
-        else:
-            return False
+        return False
 
         
-
 class Pawn(Piece):
 
     def __init__(self, color, x, y):
