@@ -1,4 +1,4 @@
-from logic import terminate
+from .logic import terminate
 import math
 from copy import deepcopy
 
