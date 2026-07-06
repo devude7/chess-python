@@ -1,0 +1,301 @@
+import pygame
+from pathlib import Path
+
+from .logic import *
+from .ai import minimax
+
+# initialize pygame
+pygame.init()
+
+# create the screen
+screen = pygame.display.set_mode((1200, 1000))
+pygame.display.set_caption("Chess")
+font = pygame.font.Font("freesansbold.ttf", 20)
+big_font = pygame.font.Font("freesansbold.ttf", 40)
+timer = pygame.time.Clock()
+fps = 60
+black = (0, 0, 0)
+white = (255, 255, 255)
+turn = 'white'
+winner = '-'
+restart = False
+ai = None
+
+# initialize the board
+side = None
+selected = 99
+dragging = False
+dragged_piece = None
+drag_pos = (0, 0)
+drag_origin = None
+
+MINIMAX_DEPTH = 7
+SQUARE_SIZE = 90
+BOARD_LEFT = 135
+BOARD_TOP = 90
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PIECES_DIR = PROJECT_ROOT / 'pieces'
+
+
+def board_square(pos):
+    x = (pos[0] - BOARD_LEFT) // SQUARE_SIZE
+    y = (pos[1] - BOARD_TOP) // SQUARE_SIZE
+    return x, y
+
+
+def is_on_board(x, y):
+    return 0 <= x <= 7 and 0 <= y <= 7
+
+
+def move_selected_piece(y, x):
+    global selected, turn
+
+    if selected == 99:
+        return False
+
+    if (selected.y, selected.x, y, x) not in legal_moves(board, turn):
+        return False
+
+    next_turn = 'black' if turn == 'white' else 'white'
+    moved = selected.move(y, x, board)
+    if moved:
+        promotion(board)
+
+    if moved:
+        turn = next_turn
+        selected = 99
+        return True
+    return False
+
+
+def piece_image(piece):
+    image = pygame.image.load(str(PIECES_DIR / f'{piece.image}.png'))
+    if piece.piece_type == 'pawn':
+        return pygame.transform.scale(image, (75, 75))
+    return pygame.transform.scale(image, (80, 80))
+
+
+# draw the board in pygame
+def draw_board():
+    for i in range(8):
+        for j in range(8):
+            if (i + j) % 2 == 0:
+                pygame.draw.rect(screen, white, (90 * (i + 1.5), 90 * (j + 1), 90, 90))
+            else:
+                pygame.draw.rect(screen, 'grey', (90 * (i + 1.5), 90 * (j + 1), 90, 90))
+    for i in range(9):
+        pygame.draw.line(screen, 'dark grey', (90 * (i + 1.5), 90), (90 * (i + 1.5), 810), 5)
+        pygame.draw.line(screen, 'dark grey', (135, 90 * (i + 1)), (855, 90 * (i + 1)), 5)
+
+    pygame.draw.rect(screen, 'yellow', (90 * 10.5, 90 * 6, 180, 90), 4)
+    screen.blit(big_font.render("Forfeit", True, black), (90 * 10 + 70, 90 * 6 + 25))
+
+    pygame.draw.rect(screen, 'yellow', (90 * 10.5, 90 * 4, 180, 90), 4)
+    screen.blit(big_font.render("Restart", True, black), (90 * 10 + 65, 90 * 4 + 25))
+
+
+# draw the pieces in pygame
+def draw_pieces():
+    for line in board.pieces:
+        for piece in line:
+            if piece != None:
+                if dragging and piece == dragged_piece:
+                    continue
+                image = piece_image(piece)
+                screen.blit(image, (90 * (piece.x + 1.55), 90 * (piece.y + 1.05)))
+            if turn == 'white':
+                if selected == piece:
+                    pygame.draw.rect(screen, 'red', (90 * (piece.x + 1.5), 90 * (piece.y + 1), 90, 90), 2)
+            else:
+                if selected == piece:
+                    pygame.draw.rect(screen, 'red', (90 * (piece.x + 1.5), 90 * (piece.y + 1), 90, 90), 2)
+
+
+def draw_dragged_piece():
+    if not dragging or dragged_piece is None:
+        return
+
+    image = piece_image(dragged_piece)
+    rect = image.get_rect(center=drag_pos)
+    screen.blit(image, rect)
+
+
+# draw the valid moves in pygame
+def draw_valid_moves(valid_moves):
+    if side == 'white':
+        for move in valid_moves:
+            pygame.draw.circle(screen, 'red', (move[1] * 90 + 180, move[0] * 90 + 135), 8)
+    else:
+        for move in valid_moves:
+            pygame.draw.circle(screen, 'red', (move[1] * 90 + 180, move[0] * 90 + 135), 8)
+       
+run = True
+# main loop
+while run:
+    timer.tick(fps)
+    screen.fill("gray")
+
+    if side == None:
+        pygame.draw.rect(screen, 'yellow', (90 * 2.5, 90 * 1, 720, 720), 4)
+        screen.blit(big_font.render("Choose a side", True, black), (90 * 5, 90 * 2))
+        pygame.draw.rect(screen, 'yellow', (90 * 3.5, 90 * 4.5, 180, 90), 4)
+        screen.blit(big_font.render("White", True, black), (90 * 3.5 + 35, 90 * 4.5 + 25))
+        pygame.draw.rect(screen, 'yellow', (90 * 7.5, 90 * 4.5, 180, 90), 4)
+        screen.blit(big_font.render("Black", True, black), (90 * 7.5 + 35, 90 * 4.5 + 25))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                pos = pygame.mouse.get_pos()
+                x = pos[0]
+                y = pos[1]            
+                if (x >= 319 and x <= 492) and (y >= 408 and y <= 491):
+                    side = 'white'
+                    board = Board(side)
+                elif (x >= 677 and x <= 852) and (y >= 407 and y <= 492):
+                    side = 'black'
+                    board = Board(side)
+    elif ai == None:
+        pygame.draw.rect(screen, 'yellow', (90 * 2.5, 90 * 1, 720, 720), 4)
+        screen.blit(big_font.render("Play", True, black), (110 * 5, 90 * 2))
+        pygame.draw.rect(screen, 'yellow', (90 * 3.5, 90 * 4.5, 180, 90), 4)
+        screen.blit(big_font.render("vs. AI", True, black), (90 * 3.5 + 35, 90 * 4.5 + 25))
+        pygame.draw.rect(screen, 'yellow', (90 * 7.5, 90 * 4.5, 180, 90), 4)
+        screen.blit(big_font.render("Alone", True, black), (90 * 7.5 + 35, 90 * 4.5 + 25))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                pos = pygame.mouse.get_pos()
+                x = pos[0]
+                y = pos[1]            
+                if (x >= 319 and x <= 492) and (y >= 408 and y <= 491):
+                    ai = True 
+                elif (x >= 677 and x <= 852) and (y >= 407 and y <= 492):
+                    ai = False
+    else:
+        draw_board()
+        draw_pieces()
+        term = terminate(board)
+        rep = board.is_repetition()
+
+        if term == 100 and winner == '-':
+            winner = 'White'
+        elif term == -100 and winner == '-':
+            winner = 'Black'
+        elif term in ['stalemate', 0] and winner == '-':
+            winner = 'Draw'
+
+        if restart == True:
+            board = Board(side)
+            selected = 99
+            dragging = False
+            dragged_piece = None
+            drag_origin = None
+            turn = 'white'
+            winner = '-'
+            restart = False
+
+        if winner != '-':
+            text = big_font.render(f"{winner} wins", True, black)
+            screen.blit(text, (400, 870))
+
+        if turn == 'white' and winner == '-':
+            text = big_font.render("White's turn", True, black)
+            if rep == True:
+                text = big_font.render("Draw by repetition", True, black)
+            if term == 'stalemate':
+                text = big_font.render("Stalemate", True, black)
+            if term == 0:
+                text = big_font.render("Draw", True, black)
+            if is_in_check(board, turn):
+                if term == -100:
+                    text = big_font.render("Black wins", True, black)  
+                else:
+                    text = big_font.render("White is in check", True, black)
+            screen.blit(text, (400, 870))
+        elif turn == 'black' and winner == '-':
+            text = big_font.render("Black's turn", True, black)
+            if rep == True:
+                text = big_font.render("Draw by repetition", True, black)
+            if term == 'stalemate':
+                text = big_font.render("Stalemate", True, black)
+            if term == 0:
+                text = big_font.render("Draw", True, black)
+            if is_in_check(board, turn):
+                if term == 100:
+                    text = big_font.render("White wins", True, black)  
+                else:
+                    text = big_font.render("Black is in check", True, black)
+            screen.blit(text, (400, 870))
+
+        if turn == 'white':
+            reset_en_passant(board, 'white')
+        else:
+            reset_en_passant(board, 'black')
+
+        if selected != 99 and winner == '-': # if a piece is selected, draw the valid moves
+            valid_moves = [
+                (to_y, to_x)
+                for from_y, from_x, to_y, to_x in legal_moves(board, turn)
+                if selected.y == from_y and selected.x == from_x
+            ]
+            draw_valid_moves(valid_moves)
+
+        draw_dragged_piece()
+
+        for event in pygame.event.get():
+            
+            if event.type == pygame.QUIT:
+                run = False
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                pos = pygame.mouse.get_pos()
+                x, y = board_square(pos)
+                if (x, y) == (10, 3) or (x, y) == (9, 3):
+                    restart = True
+                if (x, y) == (9, 5) or (x, y) == (10, 5):
+                    winner = 'Black' if turn == 'white' else 'White'
+                if is_on_board(x, y) and rep == False and term != 0 and winner == '-':
+                    piece = board.pieces[y][x]
+                    if piece != None and piece.color == turn:
+                        selected = piece
+                        dragging = True
+                        dragged_piece = piece
+                        drag_pos = pos
+                        drag_origin = (y, x)
+                    elif selected != 99:
+                        move_selected_piece(y, x)
+
+            if event.type == pygame.MOUSEMOTION and dragging:
+                drag_pos = pygame.mouse.get_pos()
+
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and dragging:
+                pos = pygame.mouse.get_pos()
+                x, y = board_square(pos)
+                origin = drag_origin
+                dragging = False
+                dragged_piece = None
+                drag_origin = None
+
+                if is_on_board(x, y) and rep == False and term != 0 and winner == '-' and origin != (y, x):
+                    move_selected_piece(y, x)
+
+        if ai == True and turn != board.board_bottom:
+            draw_board()
+            draw_pieces()
+            pygame.draw.rect(screen, 'grey', (400, 870, text.get_width(), text.get_height()))
+            text = big_font.render("AI makes move...", True, black)
+            screen.blit(text, (400, 870))  
+            pygame.display.flip()  
+            _, move = minimax(board, MINIMAX_DEPTH, turn)
+            if move:
+                from_y, from_x, to_y, to_x = move
+                board.do_move(from_y, from_x, to_y, to_x)
+                promotion(board)
+            turn = board.board_bottom
+            selected = 99
+
+    pygame.display.flip()
+pygame.quit()
+
