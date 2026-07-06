@@ -1,14 +1,5 @@
 from .logic import terminate
 import math
-from copy import deepcopy
-
-def action(board, move):
-
-    new_board = deepcopy(board)
-
-    # applying action to the copy
-    new_board.pieces[move[0]][move[1]].move(move[2], move[3], new_board)
-    return new_board
 
 
 def score(board):
@@ -43,37 +34,6 @@ def all_valid_moves(board, color):
     ]
 
     return new_moves
-
-def Max_Value(board, value, color, depth):
-    # maximizing player
-    if depth == 0 or terminate(board) != 'no':
-        return score(board)
-
-    v = -math.inf
-
-    for move in all_valid_moves(board, color):
-        v = max(v, Min_Value(action(board, move), value, 'black', depth-1))
-        #Alpha-beta pruning. The 'value not in' part assures that it doesn't affect first move otherwise it wouldn't work properly 
-        if v > value and value not in [-math.inf, math.inf]:
-            return v
-    return v
-
-
-def Min_Value(board, value, color, depth):
-    #minimizing player
-    if depth == 0 or terminate(board) != 'no':
-        return score(board)
-
-    v = math.inf
-
-    for move in all_valid_moves(board, color):
-        v = min(v, Max_Value(action(board, move), value, 'white', depth-1))
-        #Alpha-beta pruning. The 'value not in' part assures that it doesn't affect first possible move otherwise it wouldn't work properly
-        if v < value and value not in [-math.inf, math.inf]:
-            return v
-    return v
-
-
 
 def minimax(board, depth, color, alpha=-math.inf, beta=math.inf):
     if depth == 0 or terminate(board) != 'no':
