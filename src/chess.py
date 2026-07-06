@@ -1,5 +1,4 @@
 import pygame
-import copy
 from pathlib import Path
 
 from .logic import *
@@ -30,7 +29,7 @@ dragged_piece = None
 drag_pos = (0, 0)
 drag_origin = None
 
-MINIMAX_DEPTH = 4
+MINIMAX_DEPTH = 7
 SQUARE_SIZE = 90
 BOARD_LEFT = 135
 BOARD_TOP = 90
@@ -54,13 +53,13 @@ def move_selected_piece(y, x):
     if selected == 99:
         return False
 
+    if (selected.y, selected.x, y, x) not in legal_moves(board, turn):
+        return False
+
     next_turn = 'black' if turn == 'white' else 'white'
-    if is_in_check(board, turn):
-        moved = selected.incheck_move(y, x, board)
-    else:
-        moved = selected.move(y, x, board)
-        if moved:
-            promotion(board)
+    moved = selected.move(y, x, board)
+    if moved:
+        promotion(board)
 
     if moved:
         turn = next_turn
@@ -236,16 +235,11 @@ while run:
             reset_en_passant(board, 'black')
 
         if selected != 99 and winner == '-': # if a piece is selected, draw the valid moves
-            if is_in_check(board, turn):
-                valid_moves = selected.incheck_valid_moves(board)
-            else:
-                valid_moves = []
-                for move in selected.valid_moves(board):
-                    board_test = copy.deepcopy(board)
-                    selected_test = copy.deepcopy(selected)
-                    selected_test.move_test(move[0], move[1], board_test)
-                    if not is_in_check(board_test, selected_test.color):
-                        valid_moves.append(move)
+            valid_moves = [
+                (to_y, to_x)
+                for from_y, from_x, to_y, to_x in legal_moves(board, turn)
+                if selected.y == from_y and selected.x == from_x
+            ]
             draw_valid_moves(valid_moves)
 
         draw_dragged_piece()

@@ -6,6 +6,23 @@ STALEMATE = 'stalemate'
 ONGOING = 'no'
 BOARD_SIZE = 8
 
+
+def legal_moves(board, color):
+    moves = []
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
+            piece = board.pieces[y][x]
+            if piece is not None and piece.color == color:
+                for move in piece.valid_moves(board):
+                    board.do_move(y, x, move[0], move[1])
+                    if not is_in_check(board, color):
+                        moves.append((y, x, move[0], move[1]))
+                        board.undo_move()
+                        continue
+                    board.undo_move()
+    return moves
+
+
 # Helper to quickly check if side has any legal moves
 def has_any_legal_move(board, color):
     for y in range(BOARD_SIZE):
@@ -13,12 +30,45 @@ def has_any_legal_move(board, color):
             piece = board.pieces[y][x]
             if piece is not None and piece.color == color:
                 for move in piece.valid_moves(board):
-                    move_info = board.do_move(y, x, move[0], move[1])
-                    if not is_in_check(board, color):
-                        board.undo_move()
-                        return True
+                    board.do_move(y, x, move[0], move[1])
+                    has_move = not is_in_check(board, color)
                     board.undo_move()
+                    if has_move:
+                        return True
     return False
+
+
+def draw_status(board):
+    if board.is_repetition():
+        return DRAW
+
+    piecesW, piecesB = [], []
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
+            piece = board.pieces[y][x]
+            if piece is not None:
+                label = piece.piece_type
+                if label == 'bishop':
+                    label += '-even' if (x + y) % 2 == 0 else '-odd'
+                if piece.color == 'white':
+                    piecesW.append(label)
+                else:
+                    piecesB.append(label)
+
+    if piecesW == ['king'] and piecesB == ['king']:
+        return DRAW
+    if (piecesW == ['king', 'knight'] and piecesB == ['king']) or (piecesB == ['king', 'knight'] and piecesW == ['king']):
+        return DRAW
+    if (piecesW == ['king', 'bishop-even'] and piecesB == ['king']) or (piecesW == ['king', 'bishop-odd'] and piecesB == ['king']):
+        return DRAW
+    if (piecesB == ['king', 'bishop-even'] and piecesW == ['king']) or (piecesB == ['king', 'bishop-odd'] and piecesW == ['king']):
+        return DRAW
+    if (set(piecesW) <= {'king', 'bishop-even'} and set(piecesB) <= {'king', 'bishop-even'}) or \
+       (set(piecesW) <= {'king', 'bishop-odd'} and set(piecesB) <= {'king', 'bishop-odd'}):
+        if len(piecesW) == 2 and len(piecesB) == 2:
+            return DRAW
+
+    return ONGOING
 
 
 # checks if game is over or draw
@@ -32,62 +82,67 @@ def terminate(board):
         if not in_check and not has_move:
             return STALEMATE   # Stalemate
 
-    # Threefold repetition
-    if board.is_repetition():
-        return DRAW
-
-    # Dead position draw detection
-    # Gather piece types and their positions for each color
-    piecesW, piecesB = [], []
-    for y in range(BOARD_SIZE):
-        for x in range(BOARD_SIZE):
-            piece = board.pieces[y][x]
-            if piece is not None:
-                label = piece.piece_type
-                if label == 'bishop':
-                    label += '-even' if (x + y) % 2 == 0 else '-odd'
-                if piece.color == 'white':
-                    piecesW.append(label)
-                else:
-                    piecesB.append(label)
-    # King vs King
-    if piecesW == ['king'] and piecesB == ['king']:
-        return DRAW
-    # King and bishop/knight vs King
-    if (piecesW == ['king', 'knight'] and piecesB == ['king']) or (piecesB == ['king', 'knight'] and piecesW == ['king']):
-        return DRAW
-    if (piecesW == ['king', 'bishop-even'] and piecesB == ['king']) or (piecesW == ['king', 'bishop-odd'] and piecesB == ['king']):
-        return DRAW
-    if (piecesB == ['king', 'bishop-even'] and piecesW == ['king']) or (piecesB == ['king', 'bishop-odd'] and piecesW == ['king']):
-        return DRAW
-    # King and bishop vs king and bishop, both bishops on same color
-    if (set(piecesW) <= {'king', 'bishop-even'} and set(piecesB) <= {'king', 'bishop-even'}) or \
-       (set(piecesW) <= {'king', 'bishop-odd'} and set(piecesB) <= {'king', 'bishop-odd'}):
-        if len(piecesW) == 2 and len(piecesB) == 2:
-            return DRAW
-
-    return ONGOING
+    return draw_status(board)
 
 
 # checks if the king is in check
 def is_in_check(board, color):
-    king_pos = board.king_pos[color]
-    for y in range(BOARD_SIZE):
-        for x in range(BOARD_SIZE):
-            piece = board.pieces[y][x]
-            if piece and piece.color != color:
-                if king_pos in piece.valid_moves(board):
-                    return True
-    return False
+    return is_attacked(board, board.king_pos[color], color)
     
 
 def is_attacked(board, position, color):
-    for y in range(BOARD_SIZE):
-        for x in range(BOARD_SIZE):
-            piece = board.pieces[y][x]
-            if piece and piece.color != color and piece.piece_type != 'king':
-                if position in piece.valid_moves(board):
+    y, x = position
+    enemy_color = 'black' if color == 'white' else 'white'
+
+    if board.board_bottom == 'white':
+        pawn_source_y = y + 1 if enemy_color == 'white' else y - 1
+    else:
+        pawn_source_y = y - 1 if enemy_color == 'white' else y + 1
+    for pawn_x in [x - 1, x + 1]:
+        if 0 <= pawn_source_y < BOARD_SIZE and 0 <= pawn_x < BOARD_SIZE:
+            piece = board.pieces[pawn_source_y][pawn_x]
+            if piece and piece.color == enemy_color and piece.piece_type == 'pawn':
+                return True
+
+    for dy, dx in [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)]:
+        check_y, check_x = y + dy, x + dx
+        if 0 <= check_y < BOARD_SIZE and 0 <= check_x < BOARD_SIZE:
+            piece = board.pieces[check_y][check_x]
+            if piece and piece.color == enemy_color and piece.piece_type == 'knight':
+                return True
+
+    for dy, dx in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+        check_y, check_x = y + dy, x + dx
+        while 0 <= check_y < BOARD_SIZE and 0 <= check_x < BOARD_SIZE:
+            piece = board.pieces[check_y][check_x]
+            if piece is not None:
+                if piece.color == enemy_color and piece.piece_type in ['bishop', 'queen']:
                     return True
+                break
+            check_y += dy
+            check_x += dx
+
+    for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        check_y, check_x = y + dy, x + dx
+        while 0 <= check_y < BOARD_SIZE and 0 <= check_x < BOARD_SIZE:
+            piece = board.pieces[check_y][check_x]
+            if piece is not None:
+                if piece.color == enemy_color and piece.piece_type in ['rook', 'queen']:
+                    return True
+                break
+            check_y += dy
+            check_x += dx
+
+    for dy in [-1, 0, 1]:
+        for dx in [-1, 0, 1]:
+            if dy == 0 and dx == 0:
+                continue
+            check_y, check_x = y + dy, x + dx
+            if 0 <= check_y < BOARD_SIZE and 0 <= check_x < BOARD_SIZE:
+                piece = board.pieces[check_y][check_x]
+                if piece and piece.color == enemy_color and piece.piece_type == 'king':
+                    return True
+
     return False
     
 
