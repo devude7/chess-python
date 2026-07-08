@@ -29,7 +29,7 @@ dragged_piece = None
 drag_pos = (0, 0)
 drag_origin = None
 
-MINIMAX_DEPTH = 7
+MINIMAX_DEPTH = 5
 SQUARE_SIZE = 90
 BOARD_LEFT = 135
 BOARD_TOP = 90
